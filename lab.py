@@ -11,6 +11,7 @@ NOUNS = {"SNEK", "FLAG", "ROCK", "WALL", "COMPUTER", "BUG"}
 PROPERTIES = {"YOU", "WIN", "STOP", "PUSH", "DEFEAT", "PULL"}
 WORDS = NOUNS | PROPERTIES | {"AND", "IS"}
 
+
 # Maps a keyboard direction to a (delta_row, delta_column) vector.
 direction_vector = {
     "up": (-1, 0),
@@ -32,6 +33,20 @@ def is_in_bounds(position, rows, cols):
     r, c = position
 
     return 0 <= r < rows and 0 <= c < cols
+
+
+def get_next_position(position, direction):
+    delta = direction_vector[direction]
+    next_position = apply_delta(position, delta)
+
+    return next_position
+
+
+class Board:
+    pass
+
+    def to_level_description(self):
+        pass
 
 
 class Game:
@@ -63,12 +78,48 @@ class Game:
     def is_pushable_at(self, position):
         cell = self.get(position)
 
-        return "rock" in cell
+        return "rock" in cell or len(set(cell) & WORDS) > 0
 
     def is_pullable_at(self, position):
         cell = self.get(position)
 
         return "computer" in cell
+
+    def can_move_to_position(self, position, direction):
+        # check out of bounds
+        if not is_in_bounds(position, self.rows, self.cols):
+            return False
+
+        is_stoppable = self.is_stoppable_at(position)
+        is_pushable = self.is_pushable_at(position)
+
+        # you can't move into here
+        if is_stoppable:
+            return False
+
+        # object that does nothing
+        if not is_pushable:
+            return True
+
+        # object in this cell is pushable, check if it can move into the next position in direction
+        next_position = get_next_position(position, direction)
+
+        return self.can_move_to_position(next_position, direction)
+
+    def get_movables(self, position, direction):
+        pass
+
+    def new_move(self, obj, direction):
+        # get all positions of the object
+        positions = [position for position in self.board if obj in self.get(position)]
+
+        for position in positions:
+            next_position = get_next_position(position, direction)
+
+            if not self.can_move_to_position(next_position, direction):
+                continue
+
+            self.move_object(obj, position, next_position)
 
     def move(self, direction):
         self.move_object_in("snek", direction)
@@ -82,6 +133,7 @@ class Game:
             self.move_object_from_in(obj, position, direction)
 
     def move_object_from_in(self, obj, position, direction):
+        print(f"moving {obj} from {position} to {direction}")
         delta = direction_vector[direction]
 
         # calculate next position of snek
@@ -107,32 +159,59 @@ class Game:
 
         # if object in front is pushable, try to push it
         if self.is_pushable_at(next_position):
-            print("moving rock")
+            # print("moving rock")
+            # pprint.pprint(self.to_level_description())
+
+            # print(next_position)
             self.move_object_from_in("rock", next_position, direction)
+            # self.move_object("rock", position, next_position)
 
         # check if space has clear out
         if self.is_pushable_at(next_position):
-            print("something still pushable in front")
+            # print("something still pushable in front")
+            return
+
+        # check if object you're trying to move has already moved
+        if obj not in self.get(position):
             return
 
         for _ in range(num_objs):
             # move current object
             self.move_object(obj, position, next_position)
+            print(f"moving {obj}")
 
         if self.is_pullable_at(prev_position):
+            # print("pulling something")
+            # print(prev_position)
+            # pprint.pprint(self.to_level_description())
             # move prev object
             self.move_object_from_in("computer", prev_position, direction)
 
     def move_object(self, obj, from_, to):
-        self.remove_from_cell(obj, from_)
-        self.add_to_cell(obj, to)
+        num_removed = self.remove_from_cell(obj, from_)
+
+        for i in range(num_removed):
+            self.add_to_cell(obj, to)
 
     def remove_from_cell(self, obj, position):
+        """
+        Removes object from cell at position
+
+        Return: How many objects removed
+        """
+        # print("removing")
+        # print(position)
         cell = self.get(position)
-        cell.remove(obj)
+
+        num_removed = cell.count(obj)
+
+        for i in range(num_removed):
+            cell.remove(obj)
 
         if not cell:
             del self.board[position]
+
+        return num_removed
 
     def add_to_cell(self, obj, position):
         cell = self.get(position)
@@ -190,7 +269,7 @@ def step_game(game, direction):
     updating the state, and False otherwise.
     """
 
-    game.move(direction)
+    game.new_move("snek", direction)
 
     return False
 
@@ -210,16 +289,14 @@ def dump_game(game):
 
 if __name__ == "__main__":
     level_description = [
-        [["snek", "snek"], [], [], []],
-        [[], [], [], []],
-        [[], [], [], []],
-        [["SNEK"], ["IS"], ["YOU"], []],
+        [[], ["snek"], ["wall"]],
+        [["SNEK"], ["IS"], ["YOU"]],
     ]
 
     game = new_game(level_description)
 
-    game.move("right")
+    game.new_move("snek", "right")
 
     # game.move_object("snek", (0, 1), (0, 2))
 
-    print(dump_game(game))
+    pprint.pprint(dump_game(game))
