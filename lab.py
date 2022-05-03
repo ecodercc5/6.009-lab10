@@ -42,6 +42,13 @@ def get_next_position(position, direction):
     return next_position
 
 
+def get_prev_position(position, direction):
+    delta = negative(direction_vector[direction])
+    prev_position = apply_delta(position, delta)
+
+    return prev_position
+
+
 class Board:
     pass
 
@@ -85,6 +92,9 @@ class Game:
 
         return "computer" in cell
 
+    def get_movements(self, position, pushable):
+        pass
+
     def can_move_to_position(self, position, direction):
         # check out of bounds
         if not is_in_bounds(position, self.rows, self.cols):
@@ -106,112 +116,109 @@ class Game:
 
         return self.can_move_to_position(next_position, direction)
 
-    def get_movables(self, position, direction):
-        pass
+    def pull(self, position, direction, pushed=set(), pulled=set()):
+
+        if position in pulled:
+
+            return set()
+
+        num_pullables = self.get(position).count("computer")
+        if num_pullables == 0:
+            return set()
+
+        # print(num_pullables)
+
+        next_position = get_next_position(position, direction)
+        prev_position = get_prev_position(position, direction)
+
+        if self.is_stoppable_at(next_position):
+            return set()
+
+        pulled.add(position)
+
+        return (
+            self.pull(prev_position, direction, pushed, pulled)
+            | {("computer", num_pullables, position, next_position)}
+            | self.push(next_position, direction, pushed, pulled)
+        )
+
+    def push(self, position, direction, pushed=set(), pulled=set()):
+
+        if position in pushed:
+            return set()
+
+        num_pushables = self.get(position).count("rock")
+        if num_pushables == 0:
+            return set()
+
+        next_position = get_next_position(position, direction)
+        prev_position = get_prev_position(position, direction)
+
+        if self.is_stoppable_at(next_position):
+            return set()
+
+        pushed.add(position)
+
+        return (
+            self.pull(prev_position, direction, pushed, pulled)
+            | {("rock", num_pushables, position, next_position)}
+            | self.push(next_position, direction, pushed, pulled)
+        )
 
     def new_move(self, obj, direction):
         # get all positions of the object
         positions = [position for position in self.board if obj in self.get(position)]
 
+        # to move
+        to_move = set()
+
         for position in positions:
             next_position = get_next_position(position, direction)
+            prev_position = get_prev_position(position, direction)
 
             if not self.can_move_to_position(next_position, direction):
                 continue
 
-            self.move_object(obj, position, next_position)
+            num_obj = self.get(position).count(obj)
 
-    def move(self, direction):
-        self.move_object_in("snek", direction)
+            pushed = set()
+            pulled = set()
 
-    def move_object_in(self, obj, direction):
-        # get all sneks
-        positions = [position for position in self.board if obj in self.get(position)]
+            movables = (
+                self.pull(prev_position, direction, pushed, pulled)
+                | {(obj, num_obj, position, next_position)}
+                | self.push(next_position, direction, pushed, pulled)
+            )
 
-        # update sneks
-        for position in positions:
-            self.move_object_from_in(obj, position, direction)
+            to_move |= to_move | movables
 
-    def move_object_from_in(self, obj, position, direction):
-        print(f"moving {obj} from {position} to {direction}")
-        delta = direction_vector[direction]
+        print(to_move)
 
-        # calculate next position of snek
-        next_position = apply_delta(position, delta)
+        for el in to_move:
+            o, count, curr, next_ = el
 
-        # calculate previous position
-        prev_position = apply_delta(position, negative(delta))
+            for i in range(count):
+                self.move_object(o, curr, next_)
 
-        # check if position is in bounds
-        if not is_in_bounds(next_position, self.rows, self.cols):
-            return
+            # obj, position = el
 
-        # hard code wall is stop
-        # check if wall is in next position
-        if self.is_stoppable_at(next_position):
-            return
-
-        # loop over sneks at position
-        cell = self.get(position)
-
-        # count number of sneks
-        num_objs = cell.count(obj)
-
-        # if object in front is pushable, try to push it
-        if self.is_pushable_at(next_position):
-            # print("moving rock")
-            # pprint.pprint(self.to_level_description())
-
-            # print(next_position)
-            self.move_object_from_in("rock", next_position, direction)
-            # self.move_object("rock", position, next_position)
-
-        # check if space has clear out
-        if self.is_pushable_at(next_position):
-            # print("something still pushable in front")
-            return
-
-        # check if object you're trying to move has already moved
-        if obj not in self.get(position):
-            return
-
-        for _ in range(num_objs):
-            # move current object
-            self.move_object(obj, position, next_position)
-            print(f"moving {obj}")
-
-        if self.is_pullable_at(prev_position):
-            # print("pulling something")
-            # print(prev_position)
-            # pprint.pprint(self.to_level_description())
-            # move prev object
-            self.move_object_from_in("computer", prev_position, direction)
+        # print(to_move)
 
     def move_object(self, obj, from_, to):
-        num_removed = self.remove_from_cell(obj, from_)
-
-        for i in range(num_removed):
-            self.add_to_cell(obj, to)
+        self.remove_from_cell(obj, from_)
+        self.add_to_cell(obj, to)
 
     def remove_from_cell(self, obj, position):
-        """
-        Removes object from cell at position
-
-        Return: How many objects removed
-        """
         # print("removing")
         # print(position)
         cell = self.get(position)
 
-        num_removed = cell.count(obj)
-
-        for i in range(num_removed):
-            cell.remove(obj)
+        cell.remove(obj)
 
         if not cell:
             del self.board[position]
 
-        return num_removed
+        # return num_removed
 
     def add_to_cell(self, obj, position):
         cell = self.get(position)
@@ -289,14 +296,20 @@ def dump_game(game):
 
 if __name__ == "__main__":
     level_description = [
-        [[], ["snek"], ["wall"]],
-        [["SNEK"], ["IS"], ["YOU"]],
+        [["COMPUTER"], ["IS"], ["PULL"], [], [], [], ["WALL"]],
+        [["ROCK"], ["IS"], ["PUSH"], [], [], [], ["IS"]],
+        [["SNEK"], ["IS"], ["YOU"], [], [], [], ["STOP"]],
+        [[], [], [], [], [], [], []],
+        [["computer"], ["computer", "rock"], ["computer"], ["snek"], [], [], []],
     ]
 
     game = new_game(level_description)
 
     game.new_move("snek", "right")
-
-    # game.move_object("snek", (0, 1), (0, 2))
-
     pprint.pprint(dump_game(game))
+
+    print("------")
+
+    game.new_move("snek", "right")
+    pprint.pprint(dump_game(game))
+    # game.move_object("snek", (0, 1), (0, 2))
