@@ -50,14 +50,7 @@ def get_prev_position(position, direction):
 
 
 class Board:
-    pass
-
-    def to_level_description(self):
-        pass
-
-
-class Game:
-    def __init__(self, level_description) -> None:
+    def __init__(self, level_description):
         self.rows = len(level_description)
         self.cols = len(level_description[0])
         self.board = self.to_board(level_description)
@@ -76,135 +69,6 @@ class Game:
 
     def get(self, position):
         return self.board.get(position, [])
-
-    def is_stoppable_at(self, position):
-        cell = self.get(position)
-
-        return "wall" in cell
-
-    def is_pushable_at(self, position):
-        cell = self.get(position)
-
-        return "rock" in cell or len(set(cell) & WORDS) > 0
-
-    def is_pullable_at(self, position):
-        cell = self.get(position)
-
-        return "computer" in cell
-
-    def get_movements(self, position, pushable):
-        pass
-
-    def can_move_to_position(self, position, direction):
-        # check out of bounds
-        if not is_in_bounds(position, self.rows, self.cols):
-            return False
-
-        is_stoppable = self.is_stoppable_at(position)
-        is_pushable = self.is_pushable_at(position)
-
-        # you can't move into here
-        if is_stoppable:
-            return False
-
-        # object that does nothing
-        if not is_pushable:
-            return True
-
-        # object in this cell is pushable, check if it can move into the next position in direction
-        next_position = get_next_position(position, direction)
-
-        return self.can_move_to_position(next_position, direction)
-
-    def pull(self, position, direction, pushed=set(), pulled=set()):
-        if position in pulled:
-
-            return set()
-
-        num_pullables = self.get(position).count("computer")
-        if num_pullables == 0:
-            return set()
-
-        next_position = get_next_position(position, direction)
-        prev_position = get_prev_position(position, direction)
-
-        if self.is_stoppable_at(next_position):
-            return set()
-
-        pulled.add(position)
-
-        return (
-            self.pull(prev_position, direction, pushed, pulled)
-            | {("computer", num_pullables, position, next_position)}
-            | self.push(next_position, direction, pushed, pulled)
-        )
-
-    def push(self, position, direction, pushed=set(), pulled=set()):
-        if position in pushed:
-            return set()
-
-        num_pushables = self.get(position).count("rock")
-        if num_pushables == 0:
-            return set()
-
-        next_position = get_next_position(position, direction)
-        prev_position = get_prev_position(position, direction)
-
-        if self.is_stoppable_at(next_position):
-            return set()
-
-        pushed.add(position)
-
-        return (
-            self.pull(prev_position, direction, pushed, pulled)
-            | {("rock", num_pushables, position, next_position)}
-            | self.push(next_position, direction, pushed, pulled)
-        )
-
-    def new_move(self, obj, direction):
-        # get all positions of the object
-        positions = [position for position in self.board if obj in self.get(position)]
-
-        # to move
-        to_move = set()
-
-        for position in positions:
-            next_position = get_next_position(position, direction)
-            prev_position = get_prev_position(position, direction)
-
-            if not self.can_move_to_position(next_position, direction):
-                continue
-
-            num_obj = self.get(position).count(obj)
-
-            pushed = set()
-            pulled = set()
-
-            movables = (
-                self.pull(prev_position, direction, pushed, pulled)
-                | {(obj, num_obj, position, next_position)}
-                | self.push(next_position, direction, pushed, pulled)
-            )
-
-            to_move |= to_move | movables
-
-        for el in to_move:
-            o, count, curr, next_ = el
-
-            for i in range(count):
-                self.move_object(o, curr, next_)
-
-        # check for defeat
-        defeat_locations = [
-            location for location in self.board if "bug" in self.get(location)
-        ]
-
-        for defeat_location in defeat_locations:
-            cell = self.get(defeat_location)
-            num_yous = cell.count("snek")
-
-            for i in range(num_yous):
-                self.remove_from_cell("snek", defeat_location)
 
     def move_object(self, obj, from_, to):
         self.remove_from_cell(obj, from_)
@@ -233,6 +97,208 @@ class Game:
         ]
 
         return level_description
+
+
+class Game:
+    def __init__(self, level_description) -> None:
+        self.game_board = Board(level_description)
+        self.num_moves = 0
+
+    def is_stoppable_at(self, position):
+        cell = self.game_board.get(position)
+
+        return "wall" in cell
+
+    def is_pushable_at(self, position):
+        cell = self.game_board.get(position)
+
+        return "rock" in cell or len(set(cell) & WORDS) > 0
+
+    def is_pullable_at(self, position):
+        cell = self.game_board.get(position)
+
+        return "computer" in cell
+
+    def get_pushables_from_cell(self, cell):
+        pushables = {}
+
+        for obj in cell:
+            if obj == "rock" or obj in WORDS:
+                if obj in pushables:
+                    pushables[obj] += 1
+                else:
+                    pushables[obj] = 1
+
+        return pushables
+
+    def can_move_to_position(self, position, direction):
+        # check out of bounds
+        if not is_in_bounds(position, self.game_board.rows, self.game_board.cols):
+            return False
+
+        is_stoppable = self.is_stoppable_at(position)
+        is_pushable = self.is_pushable_at(position)
+
+        # you can't move into here
+        if is_stoppable:
+            return False
+
+        # object that does nothing
+        if not is_pushable:
+            return True
+
+        # object in this cell is pushable, check if it can move into the next position in direction
+        next_position = get_next_position(position, direction)
+
+        return self.can_move_to_position(next_position, direction)
+
+    def get_movement():
+        pass
+
+    def pull(self, position, direction, pushed=set(), pulled=set()):
+        if position in pulled:
+
+            return set()
+
+        num_pullables = self.game_board.get(position).count("computer")
+        if num_pullables == 0:
+            return set()
+
+        next_position = get_next_position(position, direction)
+        prev_position = get_prev_position(position, direction)
+
+        if self.is_stoppable_at(next_position):
+            return set()
+
+        pulled.add(position)
+
+        return (
+            self.pull(prev_position, direction, pushed, pulled)
+            | {("computer", num_pullables, position, next_position)}
+            | self.push(next_position, direction, pushed, pulled)
+        )
+
+    def push(self, position, direction, pushed=set(), pulled=set()):
+        if position in pushed:
+            return set()
+
+        cell = self.game_board.get(position)
+        # num_pushables = self.get(position).count("rock")
+        pushables = self.get_pushables_from_cell(cell)
+
+        # get the pushables
+        num_pushables = len(pushables)
+
+        if num_pushables == 0:
+            return set()
+
+        next_position = get_next_position(position, direction)
+        prev_position = get_prev_position(position, direction)
+
+        if self.is_stoppable_at(next_position):
+            return set()
+
+        pushables_set = {(k, v, position, next_position) for k, v in pushables.items()}
+
+        pushed.add(position)
+
+        # {("rock", num_pushables, position, next_position)}
+
+        return (
+            self.pull(prev_position, direction, pushed, pulled)
+            | pushables_set
+            | self.push(next_position, direction, pushed, pulled)
+        )
+
+    def get_positions(self, obj):
+        return [
+            position
+            for position in self.game_board.board
+            if obj in self.game_board.get(position)
+        ]
+
+    def get_objects_to_move(self, obj, direction):
+        """
+        Calculates which objects you need to move
+
+        (obj, count, current, next)
+        """
+
+        # get all positions of the object
+        positions = self.get_positions(obj)
+
+        # to move
+        to_move = set()
+
+        for position in positions:
+            next_position = get_next_position(position, direction)
+            prev_position = get_prev_position(position, direction)
+
+            if not self.can_move_to_position(next_position, direction):
+                continue
+
+            num_obj = self.game_board.get(position).count(obj)
+
+            pushed = set()
+            pulled = set()
+
+            movables = (
+                self.pull(prev_position, direction, pushed, pulled)
+                | {(obj, num_obj, position, next_position)}
+                | self.push(next_position, direction, pushed, pulled)
+            )
+
+            to_move |= to_move | movables
+
+        return to_move
+
+    def new_move(self, obj, direction):
+        to_move = self.get_objects_to_move(obj, direction)
+
+        for el in to_move:
+            o, count, curr, next_ = el
+
+            for i in range(count):
+                self.game_board.move_object(o, curr, next_)
+
+        # check for defeat
+        self.check_defeat()
+
+        # update num moves
+        self.num_moves += 1
+
+    def check_defeat(self):
+        defeat_locations = self.get_positions("bug")
+
+        for defeat_location in defeat_locations:
+            cell = self.game_board.get(defeat_location)
+            num_yous = cell.count("snek")
+
+            for i in range(num_yous):
+                self.game_board.remove_from_cell("snek", defeat_location)
+
+    @property
+    def is_win(self):
+        if self.num_moves == 0:
+            return False
+
+        # check for win
+        flag_locations = [
+            location
+            for location in self.game_board.board
+            if "flag" in self.game_board.get(location)
+        ]
+
+        for location in flag_locations:
+            cell = self.game_board.get(location)
+
+            if "snek" in cell:
+                return True
+
+        return False
+
+    def to_level_description(self):
+        return self.game_board.to_level_description()
 
     def __str__(self):
         return pprint.pformat(self.board)
@@ -276,7 +342,7 @@ def step_game(game, direction):
 
     game.new_move("snek", direction)
 
-    return False
+    return game.is_win
 
 
 def dump_game(game):
