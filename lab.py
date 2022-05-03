@@ -117,7 +117,6 @@ class Game:
         return self.can_move_to_position(next_position, direction)
 
     def pull(self, position, direction, pushed=set(), pulled=set()):
-
         if position in pulled:
 
             return set()
@@ -125,8 +124,6 @@ class Game:
         num_pullables = self.get(position).count("computer")
         if num_pullables == 0:
             return set()
-
-        # print(num_pullables)
 
         next_position = get_next_position(position, direction)
         prev_position = get_prev_position(position, direction)
@@ -143,7 +140,6 @@ class Game:
         )
 
     def push(self, position, direction, pushed=set(), pulled=set()):
-
         if position in pushed:
             return set()
 
@@ -192,33 +188,35 @@ class Game:
 
             to_move |= to_move | movables
 
-        print(to_move)
-
         for el in to_move:
             o, count, curr, next_ = el
 
             for i in range(count):
                 self.move_object(o, curr, next_)
 
-            # obj, position = el
+        # check for defeat
+        defeat_locations = [
+            location for location in self.board if "bug" in self.get(location)
+        ]
 
-        # print(to_move)
+        for defeat_location in defeat_locations:
+            cell = self.get(defeat_location)
+            num_yous = cell.count("snek")
+
+            for i in range(num_yous):
+                self.remove_from_cell("snek", defeat_location)
 
     def move_object(self, obj, from_, to):
         self.remove_from_cell(obj, from_)
         self.add_to_cell(obj, to)
 
     def remove_from_cell(self, obj, position):
-        # print("removing")
-        # print(position)
         cell = self.get(position)
 
         cell.remove(obj)
 
         if not cell:
             del self.board[position]
-
-        # return num_removed
 
     def add_to_cell(self, obj, position):
         cell = self.get(position)
