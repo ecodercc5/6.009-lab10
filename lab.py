@@ -49,11 +49,21 @@ def get_prev_position(position, direction):
     return prev_position
 
 
+def is_overlap(a, b):
+    return len(set(a) & set(b)) > 0
+
+
 class GameRules:
     def __init__(self, board):
         self.board = board
+        self.properties = {"YOU": {"snek"}}
+        self.nouns = {}
 
-    pass
+    def get_property_rule(self, property):
+        return self.properties[property]
+
+    def update(self):
+        pass
 
 
 class Board:
@@ -112,6 +122,7 @@ class Board:
 class Game:
     def __init__(self, level_description) -> None:
         self.game_board = Board(level_description)
+        self.rules = GameRules(self.game_board)
         self.num_moves = 0
 
     def is_stoppable_at(self, position):
@@ -128,6 +139,18 @@ class Game:
         cell = self.game_board.get(position)
 
         return "computer" in cell
+
+    def filter_cell(self, cell, filter_func):
+        filter_cell = {}
+
+        for obj in cell:
+            if filter_func(obj):
+                if obj in filter_cell:
+                    filter_cell[obj] += 1
+                else:
+                    filter_cell[obj] = 1
+
+        return filter_cell
 
     def get_pushables_from_cell(self, cell):
         pushables = {}
@@ -181,20 +204,32 @@ class Game:
             if obj in self.game_board.get(position)
         ]
 
-    def __get_objects_to_move(self, obj, direction):
-        positions = self.get_positions(obj)
+    def new_get_positions(self, filter_func):
+        return [position for position in self.game_board.board if filter_func(position)]
+
+    def you_in_position(self, position):
+        cell = self.game_board.get(position)
+        yous = self.rules.get_property_rule("YOU")
+
+        return len(yous & set(cell)) > 0
+
+    def get_movements(self, direction):
+        # get the position of the object you want to move
+        positions = self.new_get_positions(self.you_in_position)
 
         to_move = set()
 
         for position in positions:
             next_position = get_next_position(position, direction)
+            # check if you can move into that position
             if self.can_move_to_position(next_position, direction):
-
-                to_move |= self._get_objects_to_move(obj, position, direction)
+                # get all of the objects moved as a result of moving your main object
+                to_move |= self.get_movements_at_position(position, direction)
 
         return to_move
 
-    def _get_objects_to_move(self, obj, position, direction):
+    def get_movements_at_position(self, position, direction):
+        # agenda approach
         to_move = set()
         visited = set()
 
@@ -241,13 +276,16 @@ class Game:
 
             to_move |= movable
 
-        num_obj = self.game_board.get(position).count(obj)
-        current_obj = {(obj, num_obj, position, next_position)}
+        cell = self.game_board.get(position)
+        you_rule = self.rules.get_property_rule("YOU")
+        yous = self.filter_cell(cell, lambda object: object in you_rule)
 
-        return to_move | current_obj
+        yous_movement = {(k, v, position, next_position) for k, v in yous.items()}
 
-    def new_move(self, obj, direction):
-        to_move = self.__get_objects_to_move(obj, direction)
+        return to_move | yous_movement
+
+    def move(self, direction):
+        to_move = self.get_movements(direction)
 
         for el in to_move:
             o, count, curr, next_ = el
@@ -330,7 +368,9 @@ def step_game(game, direction):
     updating the state, and False otherwise.
     """
 
-    game.new_move("snek", direction)
+    # game.new_move("snek", direction)
+
+    game.move(direction)
 
     return game.is_win
 
