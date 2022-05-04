@@ -22,10 +22,16 @@ direction_vector = {
 
 
 def apply_delta(position, delta):
+    """
+    Adds a position tuple with a delta tuple
+    """
     return tuple([c + d for c, d in zip(position, delta)])
 
 
 def negative(vector):
+    """
+    Flips vector in the negative direction
+    """
     return tuple([-1 * i for i in vector])
 
 
@@ -47,6 +53,13 @@ def get_prev_position(position, direction):
     prev_position = apply_delta(position, delta)
 
     return prev_position
+
+
+def get_next_and_prev_position(position, direction):
+    next_position = get_next_position(position, direction)
+    prev_position = get_prev_position(position, direction)
+
+    return next_position, prev_position
 
 
 def is_overlap(a, b):
@@ -130,15 +143,46 @@ class GameRules:
     def get_property_rule(self, property):
         return self.properties[property]
 
-    def get_nouns(self, position):
+    def get_type_at_position(self, position, type_):
         cell = self.board.get(position)
 
-        return [obj for obj in cell if obj in NOUNS]
+        return {obj for obj in cell if obj in type_}
 
-    def get_properties(self, position):
-        cell = self.board.get(position)
+    # def get_nouns(self, position):
+    #     return self.get_type_at_position(position, NOUNS)
 
-        return [obj for obj in cell if obj in PROPERTIES]
+    def get_nouns(self, position, direction):
+        nouns = self.get_type_at_position(position, NOUNS)
+
+        if len(nouns) == 0:
+            return nouns
+
+        conjunction_position = get_next_position(position, direction)
+
+        if "AND" not in self.board.get(conjunction_position):
+            return nouns
+
+        noun_position = get_next_position(conjunction_position, direction)
+
+        return nouns | self.get_nouns(noun_position, direction)
+
+    def get_properties(self, position, direction):
+        properties = self.get_type_at_position(position, PROPERTIES)
+
+        if len(properties) == 0:
+            return properties
+
+        conjunction_position = get_next_position(position, direction)
+
+        if "AND" not in self.board.get(conjunction_position):
+            return properties
+
+        property_position = get_next_position(conjunction_position, direction)
+
+        return properties | self.get_properties(property_position, direction)
+
+    # def get_properties(self, position):
+    #     return self.get_type_at_position(position, PROPERTIES)
 
     def update(self):
         # get all the
@@ -152,22 +196,23 @@ class GameRules:
         is_positions = self.board.get_positions(is_IS)
 
         # look left right, top down
+        directions = [("left", "right"), ("up", "down")]
 
         for is_position in is_positions:
+            for direction in directions:
+                noun_direction, property_direction = direction
+                noun_position = get_next_position(is_position, noun_direction)
+                property_position = get_next_position(is_position, property_direction)
 
-            left = get_next_position(is_position, "left")
-            right = get_next_position(is_position, "right")
+                self.add_properties(
+                    noun_position, property_position, noun_direction, property_direction
+                )
 
-            self.add_properties(left, right)
-
-            up = get_next_position(is_position, "up")
-            down = get_next_position(is_position, "down")
-
-            self.add_properties(up, down)
-
-    def add_properties(self, noun_position, property_position):
-        nouns = self.get_nouns(noun_position)
-        properties = self.get_properties(property_position)
+    def add_properties(
+        self, noun_position, property_position, noun_direction, property_direction
+    ):
+        nouns = self.get_nouns(noun_position, noun_direction)
+        properties = self.get_properties(property_position, property_direction)
 
         rule_exists = len(nouns) > 0 and len(properties) > 0
 
@@ -195,8 +240,6 @@ class Game:
                 return True
 
         return stoppable
-
-        # return is_overlap(cell, stop_rules)
 
     def is_pushable_at(self, position):
         cell = self.game_board.get(position)
@@ -230,28 +273,10 @@ class Game:
         return obj in self.rules.get_property_rule("PULL")
 
     def get_pushables_from_cell(self, cell):
-        pushables = {}
-
-        for obj in cell:
-            if self.is_pushable(obj):
-                if obj in pushables:
-                    pushables[obj] += 1
-                else:
-                    pushables[obj] = 1
-
-        return pushables
+        return self.filter_cell(cell, self.is_pushable)
 
     def get_pullables_from_cell(self, cell):
-        pushables = {}
-
-        for obj in cell:
-            if self.is_pullable(obj):
-                if obj in pushables:
-                    pushables[obj] += 1
-                else:
-                    pushables[obj] = 1
-
-        return pushables
+        return self.filter_cell(cell, self.is_pullable)
 
     def can_move_to_position(self, position, direction):
         # check out of bounds
