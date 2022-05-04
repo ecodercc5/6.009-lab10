@@ -61,13 +61,19 @@ class GameRules:
             "STOP": {"wall"},
             "PUSH": {"rock"},
             "PULL": {"computer"},
+            "DEFEAT": {"bug"},
+            "WIN": {"flag"},
         }
         self.nouns = {}
+
+        self.update()
 
     def get_property_rule(self, property):
         return self.properties[property]
 
     def update(self):
+        # get all the
+
         pass
 
 
@@ -88,6 +94,9 @@ class Board:
                     board[position] = cell
 
         return board
+
+    def get_positions(self, filter_func):
+        return [position for position in self.board if filter_func(position)]
 
     def get(self, position):
         """
@@ -313,15 +322,27 @@ class Game:
         # update num moves
         self.num_moves += 1
 
+    def create_filter(self, property):
+        def filter_func(position):
+            cell = self.game_board.get(position)
+            rules = self.rules.get_property_rule(property)
+
+            return is_overlap(cell, rules)
+
+        return filter_func
+
     def check_defeat(self):
-        defeat_locations = self.get_positions("bug")
+        defeat_locations = self.game_board.get_positions(self.create_filter("DEFEAT"))
 
         for defeat_location in defeat_locations:
             cell = self.game_board.get(defeat_location)
-            num_yous = cell.count("snek")
+            you_rules = self.rules.get_property_rule("YOU")
 
-            for i in range(num_yous):
-                self.game_board.remove_from_cell("snek", defeat_location)
+            yous = self.filter_cell(cell, lambda obj: obj in you_rules)
+
+            for obj, count in yous.items():
+                for i in range(count):
+                    self.game_board.remove_from_cell(obj, defeat_location)
 
     @property
     def is_win(self):
@@ -329,12 +350,15 @@ class Game:
             return False
 
         # check for win
-        flag_locations = self.get_positions("flag")
+        flag_locations = self.game_board.get_positions(self.create_filter("WIN"))
 
         for location in flag_locations:
             cell = self.game_board.get(location)
+            you_rules = self.rules.get_property_rule("YOU")
 
-            if "snek" in cell:
+            yous = self.filter_cell(cell, lambda obj: obj in you_rules)
+
+            if len(yous) > 0:
                 return True
 
         return False
@@ -381,8 +405,6 @@ def step_game(game, direction):
     step_game should return a Boolean: True if the game has been won after
     updating the state, and False otherwise.
     """
-
-    # game.new_move("snek", direction)
 
     game.move(direction)
 
