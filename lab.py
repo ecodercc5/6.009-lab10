@@ -115,8 +115,6 @@ class GameRules:
         self.properties = self.get_default_properties()
         self.nouns = {}
 
-        print("updating")
-
         self.update()
 
     def get_default_properties(self):
@@ -153,13 +151,9 @@ class GameRules:
 
         is_positions = self.board.get_positions(is_IS)
 
-        print("is_positions")
-        print(is_positions)
-
         # look left right, top down
 
         for is_position in is_positions:
-            print(is_position)
 
             left = get_next_position(is_position, "left")
             right = get_next_position(is_position, "right")
@@ -175,14 +169,11 @@ class GameRules:
         nouns = self.get_nouns(noun_position)
         properties = self.get_properties(property_position)
 
-        print(nouns, properties)
-
         rule_exists = len(nouns) > 0 and len(properties) > 0
 
         if rule_exists:
             for property in properties:
                 for noun in nouns:
-                    print(property)
                     self.properties[property].add(noun.lower())
 
 
@@ -209,6 +200,7 @@ class Game:
 
     def is_pushable_at(self, position):
         cell = self.game_board.get(position)
+
         push_rules = self.rules.get_property_rule("PUSH")
 
         return is_overlap(cell, push_rules)
@@ -231,11 +223,17 @@ class Game:
 
         return filter_cell
 
+    def is_pushable(self, obj):
+        return obj in self.rules.get_property_rule("PUSH")
+
+    def is_pullable(self, obj):
+        return obj in self.rules.get_property_rule("PULL")
+
     def get_pushables_from_cell(self, cell):
         pushables = {}
 
         for obj in cell:
-            if obj == "rock" or obj in WORDS:
+            if self.is_pushable(obj):
                 if obj in pushables:
                     pushables[obj] += 1
                 else:
@@ -247,7 +245,7 @@ class Game:
         pushables = {}
 
         for obj in cell:
-            if obj == "computer":
+            if self.is_pullable(obj):
                 if obj in pushables:
                     pushables[obj] += 1
                 else:
@@ -327,7 +325,6 @@ class Game:
             prev_position_ = get_prev_position(current_position, direction)
 
             # check if stoppable at next position
-            is_stoppable = self.is_stoppable_at(next_position_)
 
             # check if object is both stop and push -> object should be pushable
 
