@@ -49,6 +49,13 @@ def get_prev_position(position, direction):
     return prev_position
 
 
+class GameRules:
+    def __init__(self, board):
+        self.board = board
+
+    pass
+
+
 class Board:
     def __init__(self, level_description):
         self.rows = len(level_description)
@@ -68,6 +75,9 @@ class Board:
         return board
 
     def get(self, position):
+        """
+        Gets the cell at position
+        """
         return self.board.get(position, [])
 
     def move_object(self, obj, from_, to):
@@ -131,6 +141,18 @@ class Game:
 
         return pushables
 
+    def get_pullables_from_cell(self, cell):
+        pushables = {}
+
+        for obj in cell:
+            if obj == "computer":
+                if obj in pushables:
+                    pushables[obj] += 1
+                else:
+                    pushables[obj] = 1
+
+        return pushables
+
     def can_move_to_position(self, position, direction):
         # check out of bounds
         if not is_in_bounds(position, self.game_board.rows, self.game_board.cols):
@@ -152,64 +174,6 @@ class Game:
 
         return self.can_move_to_position(next_position, direction)
 
-    def get_movement():
-        pass
-
-    def pull(self, position, direction, pushed=set(), pulled=set()):
-        if position in pulled:
-
-            return set()
-
-        num_pullables = self.game_board.get(position).count("computer")
-        if num_pullables == 0:
-            return set()
-
-        next_position = get_next_position(position, direction)
-        prev_position = get_prev_position(position, direction)
-
-        if self.is_stoppable_at(next_position):
-            return set()
-
-        pulled.add(position)
-
-        return (
-            self.pull(prev_position, direction, pushed, pulled)
-            | {("computer", num_pullables, position, next_position)}
-            | self.push(next_position, direction, pushed, pulled)
-        )
-
-    def push(self, position, direction, pushed=set(), pulled=set()):
-        if position in pushed:
-            return set()
-
-        cell = self.game_board.get(position)
-        # num_pushables = self.get(position).count("rock")
-        pushables = self.get_pushables_from_cell(cell)
-
-        # get the pushables
-        num_pushables = len(pushables)
-
-        if num_pushables == 0:
-            return set()
-
-        next_position = get_next_position(position, direction)
-        prev_position = get_prev_position(position, direction)
-
-        if self.is_stoppable_at(next_position):
-            return set()
-
-        pushables_set = {(k, v, position, next_position) for k, v in pushables.items()}
-
-        pushed.add(position)
-
-        # {("rock", num_pushables, position, next_position)}
-
-        return (
-            self.pull(prev_position, direction, pushed, pulled)
-            | pushables_set
-            | self.push(next_position, direction, pushed, pulled)
-        )
-
     def get_positions(self, obj):
         return [
             position
@@ -217,43 +181,73 @@ class Game:
             if obj in self.game_board.get(position)
         ]
 
-    def get_objects_to_move(self, obj, direction):
-        """
-        Calculates which objects you need to move
-
-        (obj, count, current, next)
-        """
-
-        # get all positions of the object
+    def __get_objects_to_move(self, obj, direction):
         positions = self.get_positions(obj)
 
-        # to move
         to_move = set()
 
         for position in positions:
             next_position = get_next_position(position, direction)
-            prev_position = get_prev_position(position, direction)
+            if self.can_move_to_position(next_position, direction):
 
-            if not self.can_move_to_position(next_position, direction):
-                continue
-
-            num_obj = self.game_board.get(position).count(obj)
-
-            pushed = set()
-            pulled = set()
-
-            movables = (
-                self.pull(prev_position, direction, pushed, pulled)
-                | {(obj, num_obj, position, next_position)}
-                | self.push(next_position, direction, pushed, pulled)
-            )
-
-            to_move |= to_move | movables
+                to_move |= self._get_objects_to_move(obj, position, direction)
 
         return to_move
 
+    def _get_objects_to_move(self, obj, position, direction):
+        to_move = set()
+        visited = set()
+
+        next_position = get_next_position(position, direction)
+        prev_position = get_prev_position(position, direction)
+
+        agenda = [(next_position, "push"), (prev_position, "pull")]
+
+        while agenda:
+            movement = agenda.pop(0)
+
+            current_position, action = movement
+
+            cell = self.game_board.get(current_position)
+            next_position_ = get_next_position(current_position, direction)
+            prev_position_ = get_prev_position(current_position, direction)
+
+            if self.is_stoppable_at(next_position_):
+                continue
+
+            objects = (
+                self.get_pushables_from_cell(cell)
+                if action == "push"
+                else self.get_pullables_from_cell(cell)
+            )
+
+            movable = {
+                (k, v, current_position, next_position_) for k, v in objects.items()
+            }
+
+            visited.add(movement)
+
+            if len(objects) != 0:
+                next_ = (next_position_, "push")
+                prev = (prev_position_, "pull")
+
+                if next_ not in visited:
+                    agenda.append(next_)
+                    visited.add(next_)
+
+                if prev not in visited:
+                    agenda.append(prev)
+                    visited.add(prev)
+
+            to_move |= movable
+
+        num_obj = self.game_board.get(position).count(obj)
+        current_obj = {(obj, num_obj, position, next_position)}
+
+        return to_move | current_obj
+
     def new_move(self, obj, direction):
-        to_move = self.get_objects_to_move(obj, direction)
+        to_move = self.__get_objects_to_move(obj, direction)
 
         for el in to_move:
             o, count, curr, next_ = el
@@ -283,11 +277,7 @@ class Game:
             return False
 
         # check for win
-        flag_locations = [
-            location
-            for location in self.game_board.board
-            if "flag" in self.game_board.get(location)
-        ]
+        flag_locations = self.get_positions("flag")
 
         for location in flag_locations:
             cell = self.game_board.get(location)
@@ -360,11 +350,10 @@ def dump_game(game):
 
 if __name__ == "__main__":
     level_description = [
-        [["COMPUTER"], ["IS"], ["PULL"], [], [], [], ["WALL"]],
-        [["ROCK"], ["IS"], ["PUSH"], [], [], [], ["IS"]],
-        [["SNEK"], ["IS"], ["YOU"], [], [], [], ["STOP"]],
-        [[], [], [], [], [], [], []],
-        [["computer"], ["computer", "rock"], ["computer"], ["snek"], [], [], []],
+        [[], [], [], []],
+        [[], [], ["snek"], []],
+        [[], [], [], []],
+        [["SNEK"], ["IS"], ["YOU"], []],
     ]
 
     game = new_game(level_description)
@@ -374,6 +363,6 @@ if __name__ == "__main__":
 
     print("------")
 
-    game.new_move("snek", "right")
-    pprint.pprint(dump_game(game))
+    # game.new_move("snek", "right")
+    # pprint.pprint(dump_game(game))
     # game.move_object("snek", (0, 1), (0, 2))
