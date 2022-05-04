@@ -56,7 +56,12 @@ def is_overlap(a, b):
 class GameRules:
     def __init__(self, board):
         self.board = board
-        self.properties = {"YOU": {"snek"}}
+        self.properties = {
+            "YOU": {"snek"},
+            "STOP": {"wall"},
+            "PUSH": {"rock"},
+            "PULL": {"computer"},
+        }
         self.nouns = {}
 
     def get_property_rule(self, property):
@@ -127,18 +132,21 @@ class Game:
 
     def is_stoppable_at(self, position):
         cell = self.game_board.get(position)
+        stop_rules = self.rules.get_property_rule("STOP")
 
-        return "wall" in cell
+        return is_overlap(cell, stop_rules)
 
     def is_pushable_at(self, position):
         cell = self.game_board.get(position)
+        push_rules = self.rules.get_property_rule("PUSH")
 
-        return "rock" in cell or len(set(cell) & WORDS) > 0
+        return is_overlap(cell, push_rules | WORDS)
 
     def is_pullable_at(self, position):
         cell = self.game_board.get(position)
+        pull_rules = self.rules.get_property_rule("PULL")
 
-        return "computer" in cell
+        return is_overlap(cell, pull_rules)
 
     def filter_cell(self, cell, filter_func):
         filter_cell = {}
@@ -211,7 +219,7 @@ class Game:
         cell = self.game_board.get(position)
         yous = self.rules.get_property_rule("YOU")
 
-        return len(yous & set(cell)) > 0
+        return is_overlap(cell, yous)
 
     def get_movements(self, direction):
         # get the position of the object you want to move
@@ -276,10 +284,16 @@ class Game:
 
             to_move |= movable
 
+        # get the cell
         cell = self.game_board.get(position)
+
+        # get all of the YOU objects
         you_rule = self.rules.get_property_rule("YOU")
+
+        # get all of the YOU objects in the cell
         yous = self.filter_cell(cell, lambda object: object in you_rule)
 
+        # get their movements
         yous_movement = {(k, v, position, next_position) for k, v in yous.items()}
 
         return to_move | yous_movement
