@@ -53,30 +53,6 @@ def is_overlap(a, b):
     return len(set(a) & set(b)) > 0
 
 
-class GameRules:
-    def __init__(self, board):
-        self.board = board
-        self.properties = {
-            "YOU": {"snek"},
-            "STOP": {"wall"},
-            "PUSH": {"rock"},
-            "PULL": {"computer"},
-            "DEFEAT": {"bug"},
-            "WIN": {"flag"},
-        }
-        self.nouns = {}
-
-        self.update()
-
-    def get_property_rule(self, property):
-        return self.properties[property]
-
-    def update(self):
-        # get all the
-
-        pass
-
-
 class Board:
     def __init__(self, level_description):
         self.rows = len(level_description)
@@ -133,6 +109,83 @@ class Board:
         return level_description
 
 
+class GameRules:
+    def __init__(self, board: Board):
+        self.board = board
+        self.properties = self.get_default_properties()
+        self.nouns = {}
+
+        print("updating")
+
+        self.update()
+
+    def get_default_properties(self):
+        return {
+            "YOU": set(),
+            "STOP": set(),
+            "PUSH": set(WORDS),
+            "PULL": set(),
+            "DEFEAT": set(),
+            "WIN": set(),
+        }
+
+    def get_property_rule(self, property):
+        return self.properties[property]
+
+    def get_nouns(self, position):
+        cell = self.board.get(position)
+
+        return [obj for obj in cell if obj in NOUNS]
+
+    def get_properties(self, position):
+        cell = self.board.get(position)
+
+        return [obj for obj in cell if obj in PROPERTIES]
+
+    def update(self):
+        # get all the
+        self.properties = self.get_default_properties()
+
+        def is_IS(position):
+            cell = self.board.get(position)
+
+            return "IS" in cell
+
+        is_positions = self.board.get_positions(is_IS)
+
+        print("is_positions")
+        print(is_positions)
+
+        # look left right, top down
+
+        for is_position in is_positions:
+            print(is_position)
+
+            left = get_next_position(is_position, "left")
+            right = get_next_position(is_position, "right")
+
+            self.add_properties(left, right)
+
+            up = get_next_position(is_position, "up")
+            down = get_next_position(is_position, "down")
+
+            self.add_properties(up, down)
+
+    def add_properties(self, noun_position, property_position):
+        nouns = self.get_nouns(noun_position)
+        properties = self.get_properties(property_position)
+
+        print(nouns, properties)
+
+        rule_exists = len(nouns) > 0 and len(properties) > 0
+
+        if rule_exists:
+            for property in properties:
+                for noun in nouns:
+                    print(property)
+                    self.properties[property].add(noun.lower())
+
+
 class Game:
     def __init__(self, level_description) -> None:
         self.game_board = Board(level_description)
@@ -142,14 +195,23 @@ class Game:
     def is_stoppable_at(self, position):
         cell = self.game_board.get(position)
         stop_rules = self.rules.get_property_rule("STOP")
+        push_rules = self.rules.get_property_rule("PUSH")
 
-        return is_overlap(cell, stop_rules)
+        stoppable = False
+
+        for obj in cell:
+            if obj in stop_rules and obj not in push_rules:
+                return True
+
+        return stoppable
+
+        # return is_overlap(cell, stop_rules)
 
     def is_pushable_at(self, position):
         cell = self.game_board.get(position)
         push_rules = self.rules.get_property_rule("PUSH")
 
-        return is_overlap(cell, push_rules | WORDS)
+        return is_overlap(cell, push_rules)
 
     def is_pullable_at(self, position):
         cell = self.game_board.get(position)
@@ -264,6 +326,11 @@ class Game:
             next_position_ = get_next_position(current_position, direction)
             prev_position_ = get_prev_position(current_position, direction)
 
+            # check if stoppable at next position
+            is_stoppable = self.is_stoppable_at(next_position_)
+
+            # check if object is both stop and push -> object should be pushable
+
             if self.is_stoppable_at(next_position_):
                 continue
 
@@ -321,6 +388,9 @@ class Game:
 
         # update num moves
         self.num_moves += 1
+
+        # update game rules
+        self.rules.update()
 
     def create_filter(self, property):
         def filter_func(position):
@@ -434,7 +504,7 @@ if __name__ == "__main__":
 
     game = new_game(level_description)
 
-    game.new_move("snek", "right")
+    game.move("right")
     pprint.pprint(dump_game(game))
 
     print("------")
