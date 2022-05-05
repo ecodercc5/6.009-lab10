@@ -130,6 +130,9 @@ class GameRules:
 
         self.update()
 
+        print(self.properties)
+        print(self.nouns)
+
     def get_default_properties(self):
         return {
             "YOU": set(),
@@ -187,6 +190,7 @@ class GameRules:
     def update(self):
         # get all the
         self.properties = self.get_default_properties()
+        self.nouns = {}
 
         def is_IS(position):
             cell = self.board.get(position)
@@ -207,6 +211,23 @@ class GameRules:
                 self.add_properties(
                     noun_position, property_position, noun_direction, property_direction
                 )
+
+                self.add_nouns(noun_position, property_position, property_direction)
+
+    def add_nouns(self, noun_position, is_noun_position, direction):
+        nouns = self.get_type_at_position(noun_position, NOUNS)
+        is_nouns = self.get_type_at_position(is_noun_position, NOUNS)
+
+        rule_exists = len(nouns) > 0 and len(is_nouns) > 0
+
+        if not rule_exists:
+            return
+
+        for n in nouns:
+            current = self.nouns.get(n, set())
+            current |= {noun.lower() for noun in is_nouns}
+
+            self.nouns[n] = current
 
     def add_properties(
         self, noun_position, property_position, noun_direction, property_direction
@@ -396,6 +417,9 @@ class Game:
 
         return to_move | yous_movement
 
+    def get_obj_positions(self, obj):
+        return [pos for pos in self.game_board.board if obj in self.game_board.get(pos)]
+
     def move(self, direction):
         to_move = self.get_movements(direction)
 
@@ -405,14 +429,44 @@ class Game:
             for i in range(count):
                 self.game_board.move_object(o, curr, next_)
 
+        # update game rules
+        self.rules.update()
+
+        transitions = []
+
+        # update objects
+        for noun_rule, to_rule in self.rules.nouns.items():
+            # print("yo")
+
+            noun = noun_rule.lower()
+            to = list(to_rule)[0].lower()
+
+            noun_positions = self.get_obj_positions(noun)
+
+            for noun_position in noun_positions:
+                cell = self.game_board.get(noun_position)
+                count = cell.count(noun)
+
+                transitions.append((noun, to, noun_position, count))
+
+            # print(noun, to)
+            # print(noun_positions)
+
+        for transition in transitions:
+            print(transition)
+
+            current, next_obj, position, count = transition
+            # cell = self.game_board.get(position)
+
+            for i in range(count):
+                self.game_board.remove_from_cell(current, position)
+                self.game_board.add_to_cell(next_obj, position)
+
         # check for defeat
         self.check_defeat()
 
         # update num moves
         self.num_moves += 1
-
-        # update game rules
-        self.rules.update()
 
     def create_filter(self, property):
         def filter_func(position):
