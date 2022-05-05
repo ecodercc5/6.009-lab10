@@ -184,6 +184,21 @@ class GameRules:
 
         return properties | self.get_properties(property_position, direction)
 
+    def get_nouns_and_properties(self, position, direction):
+        properties = self.get_type_at_position(position, PROPERTIES | NOUNS)
+
+        if len(properties) == 0:
+            return properties
+
+        conjunction_position = get_next_position(position, direction)
+
+        if "AND" not in self.board.get(conjunction_position):
+            return properties
+
+        property_position = get_next_position(conjunction_position, direction)
+
+        return properties | self.get_nouns_and_properties(property_position, direction)
+
     # def get_properties(self, position):
     #     return self.get_type_at_position(position, PROPERTIES)
 
@@ -233,14 +248,25 @@ class GameRules:
         self, noun_position, property_position, noun_direction, property_direction
     ):
         nouns = self.get_nouns(noun_position, noun_direction)
-        properties = self.get_properties(property_position, property_direction)
+        # properties = self.get_properties(property_position, property_direction)
+        properties = self.get_nouns_and_properties(
+            property_position, property_direction
+        )
+
+        # print(properties)
 
         rule_exists = len(nouns) > 0 and len(properties) > 0
 
         if rule_exists:
             for property in properties:
                 for noun in nouns:
-                    self.properties[property].add(noun.lower())
+                    print(noun, property)
+                    if property in NOUNS:
+                        current = self.nouns.get(noun, set())
+                        current |= {property.lower()}
+                        self.nouns[noun] = current
+                    if property in PROPERTIES:
+                        self.properties[property].add(noun.lower())
 
 
 class Game:
@@ -421,6 +447,7 @@ class Game:
         return [pos for pos in self.game_board.board if obj in self.game_board.get(pos)]
 
     def move(self, direction):
+
         to_move = self.get_movements(direction)
 
         for el in to_move:
